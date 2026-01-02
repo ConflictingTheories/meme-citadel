@@ -1,0 +1,25 @@
+{
+  "name": "aegis-meme-citadel",
+  "version": "1.0.0",
+  "description": "Project AEGIS - The Memetic Citadel. A knowledge platform linking claims to evidence through citation networks.",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && cd meme-citadel-full-build/server && npm install && cd ../client && npm install",
+    "start:server": "cd meme-citadel-full-build/server && npm start",
+    "start:client": "cd meme-citadel-full-build/client && npm run dev",
+    "dev": "concurrently \"npm run start:server\" \"npm run start:client\"",
+    "build": "cd meme-citadel-full-build/client && npm run build"
+  },
+  "keywords": [
+    "knowledge-graph",
+    "memes",
+    "evidence",
+    "debate",
+    "verification"
+  ],
+  "author": "AEGIS Project",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
