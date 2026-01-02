@@ -38,6 +38,8 @@ function App() {
     const [searchQuery, setSearchQuery] = useState('');
     const [showMobileMenu, setShowMobileMenu] = useState(false);
     const [sortBy, setSortBy] = useState('score');
+    const [currentUser, setCurrentUser] = useState(null); // User identity/auth
+    const [showUserProfile, setShowUserProfile] = useState(false);
 
     useEffect(() => {
         // Load categories and stats on mount
@@ -73,7 +75,26 @@ function App() {
     };
 
     const handleEnterCitadel = () => {
+        // Require user to identify themselves before entering
+        if (!currentUser) {
+            setActiveView(VIEWS.IDENTITY);
+        } else {
+            setActiveView(VIEWS.FEED);
+        }
+    };
+
+    const handleUserIdentified = (user) => {
+        setCurrentUser(user);
+        setShowUserProfile(false);
+        // Auto-navigate to feed after identification
         setActiveView(VIEWS.FEED);
+    };
+
+    const handleExploreNode = (nodeId) => {
+        // When exploring a node connection, set it as new root
+        setSelectedRootNodeId(nodeId);
+        // Keep in graph view
+        setActiveView(VIEWS.GRAPH);
     };
 
     const NavButton = ({ view, label, icon: Icon, badge = null }) => (
@@ -100,7 +121,7 @@ function App() {
             case VIEWS.LANDING:
                 return <LandingPage onEnter={handleEnterCitadel} stats={stats} />;
             case VIEWS.IDENTITY:
-                return <IdentityFingerprint />;
+                return <IdentityFingerprint onIdentified={handleUserIdentified} />;
             case VIEWS.FEED:
                 return (
                     <MemeFeed 
@@ -110,16 +131,46 @@ function App() {
                     />
                 );
             case VIEWS.SUBMIT:
+                if (!currentUser) {
+                    return (
+                        <div className="text-center p-10">
+                            <Shield className="mx-auto mb-4 text-cyan-400" size={48} />
+                            <p className="text-slate-300 mb-4">You must identify yourself to submit memes.</p>
+                            <button
+                                onClick={() => setActiveView(VIEWS.IDENTITY)}
+                                className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg"
+                            >
+                                Identify Myself
+                            </button>
+                        </div>
+                    );
+                }
                 return (
                     <SubmissionForm 
                         onSubmission={() => setActiveView(VIEWS.VERIFY)}
                         categories={categories}
+                        userId={currentUser?.id}
                     />
                 );
             case VIEWS.VERIFY:
+                if (!currentUser) {
+                    return (
+                        <div className="text-center p-10">
+                            <Shield className="mx-auto mb-4 text-cyan-400" size={48} />
+                            <p className="text-slate-300 mb-4">You must identify yourself to verify evidence.</p>
+                            <button
+                                onClick={() => setActiveView(VIEWS.IDENTITY)}
+                                className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg"
+                            >
+                                Identify Myself
+                            </button>
+                        </div>
+                    );
+                }
                 return (
                     <VerificationQueue 
                         category={selectedCategory}
+                        userId={currentUser?.id}
                     />
                 );
             case VIEWS.GRAPH:
@@ -132,7 +183,7 @@ function App() {
                             <ArrowLeft size={16} />
                             Back to Feed
                         </button>
-                        <GraphView rootNodeId={selectedRootNodeId} />
+                        <GraphView rootNodeId={selectedRootNodeId} onExploreNode={handleExploreNode} />
                     </div>
                 );
             case VIEWS.DEBATES:
@@ -140,6 +191,7 @@ function App() {
                     <DebateList 
                         onSelectDebate={handleSelectDebate}
                         category={selectedCategory}
+                        currentUser={currentUser}
                     />
                 );
             case VIEWS.DEBATE_DETAIL:

@@ -7,17 +7,22 @@ const API_BASE_URL = 'http://localhost:3001/api';
 
 // Helper for making requests
 export async function apiRequest(endpoint, options = {}) {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        headers: { 'Content-Type': 'application/json' },
-        ...options,
-    });
-    
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(error.error || `HTTP ${response.status}`);
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            headers: { 'Content-Type': 'application/json' },
+            ...options,
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(error.error || `HTTP ${response.status}`);
+        }
+
+        return response.json();
+    } catch (err) {
+        // Convert fetch/network errors into a consistent Error type
+        throw new Error(`Network error: ${err.message}`);
     }
-    
-    return response.json();
 }
 
 // ============================================================================

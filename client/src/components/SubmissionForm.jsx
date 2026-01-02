@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { UploadCloud, Link, FileText, BarChart2, Video, Plus, HelpCircle, CheckCircle, XCircle } from 'lucide-react';
+import { submitEvidence } from '../api';
 
 const evidenceTypes = [
     { id: 'URL', icon: Link, label: 'URL' },
@@ -28,24 +29,14 @@ export default function SubmissionForm({ onSubmission }) {
         setStatus({ type: 'submitting' });
 
         try {
-            const res = await fetch('http://localhost:3001/api/evidence', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title,
-                    type: evidenceType,
-                    url,
-                    reasoning,
-                    stake
-                }),
+            const newEvidence = await submitEvidence({
+                title,
+                type: evidenceType,
+                url,
+                reasoning,
+                stake
             });
 
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.message || `HTTP Error: ${res.status}`);
-            }
-
-            const newEvidence = await res.json();
             setStatus({ type: 'success', message: 'Evidence submitted successfully!' });
             if (onSubmission) onSubmission(newEvidence);
             // Reset form after a delay

@@ -1,19 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Shield, MapPin, Wifi, AlertTriangle, CheckCircle, Eye, EyeOff, Info } from 'lucide-react';
 import fingerprintingService from '../services/fingerprinting';
 
-export default function IdentityFingerprint() {
+export default function IdentityFingerprint({ onIdentified }) {
     const [fingerprint, setFingerprint] = useState(null);
     const [loading, setLoading] = useState(true);
     const [showDetails, setShowDetails] = useState(false);
     const [user, setUser] = useState(null);
+    const [error, setError] = useState(null);
+
+    // Guard so we only auto-attempt once (avoid double-invoke in StrictMode)
+    const attemptedRef = useRef(false);
 
     useEffect(() => {
-        collectFingerprint();
+        if (!attemptedRef.current) {
+            attemptedRef.current = true;
+            collectFingerprint();
+        }
     }, []);
 
     const collectFingerprint = async () => {
         setLoading(true);
+        setError(null);
 
         try {
             // Collect fingerprint and send to server
@@ -24,6 +32,7 @@ export default function IdentityFingerprint() {
                 setUser(identityData.user);
             } else {
                 // Fallback for demo purposes
+                setError('Unable to reach the identity service — using demo identity.');
                 setFingerprint({
                     publicId: 'aegis_a4f3_9c2d_7b81_4e6a',
                     trustScore: 78,
@@ -61,7 +70,8 @@ export default function IdentityFingerprint() {
                 });
             }
         } catch (error) {
-            console.error('Fingerprint collection failed:', error);
+            console.warn('Fingerprint collection failed (caught):', error);
+            setError('An unexpected error occurred while collecting identity.');
             // Use demo data as fallback
             setFingerprint({
                 publicId: 'aegis_demo_1234',
@@ -90,6 +100,11 @@ export default function IdentityFingerprint() {
         setLoading(false);
     };
 
+    const handleRetry = () => {
+        // allow manual retry even if auto attempt already ran
+        collectFingerprint();
+    };
+
     if (loading) {
         return (
             <div className="w-full max-w-2xl mx-auto bg-slate-900 border border-slate-800 rounded-xl p-8">
@@ -103,6 +118,19 @@ export default function IdentityFingerprint() {
             </div>
         );
     }
+
+    // Show a small dismissible error message and a Retry button when we used fallback
+    const fallbackBanner = error ? (
+        <div className="max-w-2xl mx-auto text-center text-xs text-amber-300 mb-2">
+            <div>{error}</div>
+            <button
+                onClick={handleRetry}
+                className="mt-2 bg-amber-500 hover:bg-amber-600 text-white text-[11px] py-1 px-3 rounded-lg"
+            >
+                Retry Identity
+            </button>
+        </div>
+    ) : null;
 
     const getTrustColor = (score) => {
         if (score >= 80) return 'green';
@@ -119,6 +147,8 @@ export default function IdentityFingerprint() {
 
     return (
         <div className="w-full max-w-2xl mx-auto space-y-4">
+
+            {fallbackBanner}
 
             {/* Main Identity Card */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
@@ -297,6 +327,16 @@ export default function IdentityFingerprint() {
                                 <div className="text-lg font-bold text-slate-200">{user.contributions.verifications}</div>
                                 <div className="text-xs text-slate-500">Verifications</div>
                             </div>
+                        </div>
+                        
+                        {/* Confirmation Button */}
+                        <div className="pt-4 border-t border-slate-800">
+                            <button
+                                onClick={() => onIdentified && onIdentified(user)}
+                                className="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+                            >
+                                Confirm Identity & Enter Citadel
+                            </button>
                         </div>
                     </div>
                 </div>

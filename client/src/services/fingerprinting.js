@@ -2,10 +2,13 @@
 // AEGIS FINGERPRINTING SERVICE - Client-side identity management
 // ============================================================================
 
+import { submitFingerprint } from '../api';
+
 class FingerprintingService {
     constructor() {
         this.SALT_ROUNDS = 12;
         this.GEOHASH_PRECISION = 5;
+        this._lastNetworkError = null; // store last network error message to avoid log spam
     }
 
     // =========================================================================
@@ -438,20 +441,39 @@ class FingerprintingService {
         try {
             const browserFingerprint = await this.collectBrowserFingerprint();
 
-            // Send to server for processing
-            const response = await fetch('/api/fingerprint', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ browserFingerprint })
-            });
+            // Try to send to server with retries and exponential backoff
+            const maxAttempts = 3;
+            let attempt = 0;
+            let lastErr = null;
 
-            if (!response.ok) {
-                throw new Error('Fingerprint submission failed');
+            while (attempt < maxAttempts) {
+                try {
+                    attempt++;
+                    const response = await submitFingerprint(browserFingerprint);
+                    // clear stored error on success
+                    this._lastNetworkError = null;
+                    return response;
+                } catch (err) {
+                    lastErr = err;
+                    // Only log once per distinct error message to avoid console spam
+                    const msg = err?.message || String(err);
+                    if (this._lastNetworkError !== msg) {
+                        // Use console.warn instead of error to be less noisy
+                        console.warn('Fingerprint submission error:', msg);
+                        this._lastNetworkError = msg;
+                    }
+
+                    // Backoff before next attempt (simple exponential)
+                    const delay = 500 * Math.pow(2, attempt - 1);
+                    await new Promise(r => setTimeout(r, delay));
+                }
             }
 
-            return await response.json();
+            // After attempts, return null (caller may fallback)
+            return null;
         } catch (error) {
-            console.error('Fingerprint collection failed:', error);
+            // Collection failed (non-network), log debug and return null
+            console.debug('Fingerprint collection failed (non-network):', error);
             return null;
         }
     }

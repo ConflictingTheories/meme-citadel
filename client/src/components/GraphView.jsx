@@ -168,7 +168,7 @@ const InspectorPanel = ({ selectedNode, onClose, onExploreConnections }) => {
 };
 
 
-export default function GraphView({ rootNodeId }) {
+export default function GraphView({ rootNodeId, onExploreNode }) {
     const [graphData, setGraphData] = useState({ nodes: [], links: [] });
     const [selectedNode, setSelectedNode] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -428,8 +428,10 @@ export default function GraphView({ rootNodeId }) {
                 selectedNode={selectedNode} 
                 onClose={() => setSelectedNode(null)}
                 onExploreConnections={(nodeId) => {
-                    // Could trigger a new graph load from this node
-                    console.log('Explore from:', nodeId);
+                    // Set the clicked node as the new root and refetch the graph
+                    if (nodeId && nodeId !== rootNodeId && onExploreNode) {
+                        onExploreNode(nodeId);
+                    }
                 }}
             />
         </div>

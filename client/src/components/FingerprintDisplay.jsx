@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, ShieldOff, Wifi, WifiOff, Globe, Fingerprint, HelpCircle } from 'lucide-react';
+import { getUserIdentity } from '../api';
 
 // This is the client-side component that collects and displays the user's identity fingerprint.
 // In a real app, the collection logic would be more extensive.
@@ -37,11 +38,10 @@ export default function FingerprintDisplay({ compact = false }) {
         const fetchIdentity = async () => {
             // In a real app, this might fetch from /api/user/identity AND run local checks
             try {
-                const res = await fetch('http://localhost:3001/api/user/identity');
-                const data = await res.json();
+                const data = await getUserIdentity();
                 setIdentity(data);
             } catch (error) {
-                console.error("Failed to fetch identity:", error);
+                console.warn("Failed to fetch identity:", error);
                 // Fallback to a mock identity on error
                 setIdentity({
                     publicId: "hash-error-fallback",

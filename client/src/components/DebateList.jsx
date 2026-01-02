@@ -36,7 +36,11 @@ export default function DebateList({ onSelectDebate, category }) {
     }
 
     if (error) {
-        return <div className="text-red-400 text-center p-10">Error: {error}</div>;
+        const hint = error.toLowerCase().includes('network')
+            ? ' (Unable to reach backend. Is the API server running on http://localhost:3001/?)'
+            : '';
+
+        return <div className="text-red-400 text-center p-10">Error: {error}{hint}</div>;
     }
 
     if (debates.length === 0) {
