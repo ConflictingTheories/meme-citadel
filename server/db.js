@@ -179,7 +179,7 @@ let memes = [
 ];
 
 // ============================================================================
-// GRAPH NODES - The knowledge graph
+// GRAPH NODES - The knowledge graph (AEGIS Blueprint Compliant)
 // ============================================================================
 let nodes = {
     // Dead Internet Theory Graph
@@ -188,6 +188,20 @@ let nodes = {
         label: "Dead Internet Theory",
         type: "MEME",
         content: "The claim that the internet is now predominantly populated by bot activity and AI content.",
+        provenance: {
+            source: "Various online discussions and reports",
+            author: "Anonymous internet researchers",
+            year: "2010s-present",
+            verifiedScanLink: "IPFS_Hash_DeadInternet_2024",
+            citation: "Emerging from 4chan and Reddit discussions"
+        },
+        intrinsicProperties: [
+            "High_Agency",
+            "Truth_Seeking",
+            "Technological_Literacy"
+        ],
+        controversyLevel: "high",
+        citadelScore: 78,
         stats: { verified: 45, disputed: 12 },
         category: "culture"
     },
@@ -195,6 +209,20 @@ let nodes = {
         id: "node_bot_report",
         label: "2024 Bot Traffic Report",
         type: "STATISTIC",
+        content: "Analysis showing 47% of internet traffic may be automated",
+        provenance: {
+            source: "Bot Traffic Report 2024",
+            author: "Imperva Cybersecurity",
+            year: "2024",
+            verifiedScanLink: "IPFS_Hash_Imperva_BotReport_2024",
+            citation: "Imperva. (2024). Bot Traffic Report."
+        },
+        intrinsicProperties: [
+            "Empirical_Data",
+            "Technological_Assessment"
+        ],
+        controversyLevel: "medium",
+        citadelScore: 95,
         sourceType: "PDF Report",
         verified: true,
         author: "Imperva",
@@ -206,20 +234,44 @@ let nodes = {
         id: "node_baudrillard",
         label: "Simulacra & Simulation",
         type: "TEXT",
-        sourceType: "Book (1981)",
-        author: "Jean Baudrillard",
-        year: 1981,
         content: "Philosophical treatise on reality vs. symbols. The 'precession of simulacra' predicts digital unreality.",
+        provenance: {
+            source: "Simulacra and Simulation",
+            author: "Jean Baudrillard",
+            year: "1981",
+            verifiedScanLink: "IPFS_Hash_Baudrillard_Simulacra_1981",
+            citation: "Baudrillard, J. (1981). Simulacra and Simulation."
+        },
+        intrinsicProperties: [
+            "Philosophical_Depth",
+            "Cultural_Critique",
+            "Postmodern_Theory"
+        ],
+        controversyLevel: "medium",
+        citadelScore: 87,
+        sourceType: "Book (1981)",
         verified: true
     },
     "node_human_users": {
         id: "node_human_users",
         label: "Human User Growth",
         type: "STATISTIC",
-        sourceType: "Data Set",
-        author: "ITU",
-        year: 2024,
         content: "Global connectivity index shows 500M new human users in 2024, contradicting total bot dominance.",
+        provenance: {
+            source: "Measuring Digital Development: Facts and Figures 2024",
+            author: "International Telecommunication Union (ITU)",
+            year: "2024",
+            verifiedScanLink: "IPFS_Hash_ITU_DigitalDev_2024",
+            citation: "ITU. (2024). Measuring Digital Development: Facts and Figures."
+        },
+        intrinsicProperties: [
+            "Empirical_Data",
+            "Global_Perspective",
+            "Connectivity_Metrics"
+        ],
+        controversyLevel: "low",
+        citadelScore: 92,
+        sourceType: "Data Set",
         verified: true
     },
     
@@ -263,12 +315,68 @@ let nodes = {
     },
     "node_open_borders": {
         id: "node_open_borders",
-        label: "Case for Open Borders",
+        label: "Open Borders Are Beneficial",
+        type: "MEME",
+        content: "The claim that removing national borders would lead to greater global prosperity and human flourishing.",
+        provenance: {
+            source: "Various progressive policy discussions",
+            author: "Multiple economists and activists",
+            year: "2010s-present",
+            verifiedScanLink: "IPFS_Hash_OpenBorders_Discussions",
+            citation: "Open Borders: The Science and Ethics of Immigration (Caplan & Weinersmith, 2019)"
+        },
+        intrinsicProperties: [
+            "Global_Humanitarianism",
+            "Economic_Efficiency",
+            "Cultural_Exchange"
+        ],
+        controversyLevel: "high",
+        citadelScore: 145,
+        stats: { verified: 89, disputed: 156 },
+        category: "politics"
+    },
+    "node_caplan_weinersmith": {
+        id: "node_caplan_weinersmith",
+        label: "Open Borders Book",
         type: "TEXT",
-        sourceType: "Academic Paper",
-        author: "Bryan Caplan",
-        year: 2019,
-        content: "Economic argument that open borders would increase global GDP and reduce poverty.",
+        content: "Comprehensive economic analysis showing open borders could increase global GDP by 50-150%.",
+        provenance: {
+            source: "Open Borders: The Science and Ethics of Immigration",
+            author: "Bryan Caplan & Zach Weinersmith",
+            year: "2019",
+            verifiedScanLink: "IPFS_Hash_CaplanWeinersmith_2019",
+            citation: "Caplan, B., & Weinersmith, Z. (2019). Open Borders: The Science and Ethics of Immigration."
+        },
+        intrinsicProperties: [
+            "Economic_Analysis",
+            "Utilitarian_Ethics",
+            "Migration_Studies"
+        ],
+        controversyLevel: "high",
+        citadelScore: 132,
+        sourceType: "Book (2019)",
+        verified: true
+    },
+    "node_border_crime": {
+        id: "node_border_crime",
+        label: "Border Security Reduces Crime",
+        type: "STATISTIC",
+        content: "US border security improvements correlate with reduced violent crime rates in border states.",
+        provenance: {
+            source: "FBI Uniform Crime Reporting Program",
+            author: "Federal Bureau of Investigation",
+            year: "2023",
+            verifiedScanLink: "IPFS_Hash_FBI_CrimeStats_2023",
+            citation: "FBI. (2023). Crime in the United States."
+        },
+        intrinsicProperties: [
+            "Public_Safety",
+            "Law_Enforcement_Data",
+            "Criminology"
+        ],
+        controversyLevel: "high",
+        citadelScore: 118,
+        sourceType: "Government Statistics",
         verified: true
     },
     
@@ -494,7 +602,12 @@ let edges = [
     
     // Cross-topic connections
     { id: "edge_24", from: "node_rome_fall", to: "node_currency_debasement", type: "CONTEXT", label: "CONTEXT", weight: 0.85, verified: true },
-    { id: "edge_25", from: "node_logos", to: "node_art", type: "CONTEXT", label: "INFLUENCES", weight: 0.6, verified: true }
+    { id: "edge_25", from: "node_logos", to: "node_art", type: "CONTEXT", label: "INFLUENCES", weight: 0.6, verified: true },
+    
+    // Immigration debate connections
+    { id: "edge_26", from: "node_open_borders", to: "node_caplan_weinersmith", type: "SUPPORTS", label: "SUPPORTS", weight: 0.9, verified: true },
+    { id: "edge_27", from: "node_open_borders", to: "node_border_crime", type: "DISPUTES", label: "CONTRADICTS", weight: 0.75, verified: true },
+    { id: "edge_28", from: "node_borders", to: "node_border_crime", type: "SUPPORTS", label: "SUPPORTS", weight: 0.8, verified: true }
 ];
 
 // ============================================================================
@@ -516,7 +629,7 @@ let debates = [
                 title: "Borders are Essential for Sovereignty",
                 summary: "Without defined borders, there can be no meaningful citizenship, law, or democratic accountability.",
                 submitterId: "user_4",
-                evidenceNodeIds: ["node_scruton", "node_rome_fall", "node_border_stats"],
+                evidenceNodeIds: ["node_scruton", "node_rome_fall", "node_border_stats", "node_border_crime"],
                 votes: { agree: 156, disagree: 45 }
             },
             {
@@ -525,7 +638,7 @@ let debates = [
                 title: "Open Borders Maximize Human Flourishing",
                 summary: "Freedom of movement is a fundamental right; borders cause suffering and reduce global prosperity.",
                 submitterId: "user_2",
-                evidenceNodeIds: ["node_open_borders"],
+                evidenceNodeIds: ["node_open_borders", "node_caplan_weinersmith"],
                 votes: { agree: 89, disagree: 78 }
             }
         ],
