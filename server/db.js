@@ -1,7 +1,16 @@
 // ============================================================================
-// AEGIS MEME CITADEL - Enhanced In-Memory Database
-// In production, this would be Neo4j + Postgres + Redis
+// AEGIS MEME CITADEL - Database with optional SQLite persistence
+// By default this module exports the seeded in-memory fixtures. If SQLite
+// persistence is available, it will load persisted rows from `server/data.sqlite`
+// and otherwise seed the DB with the fixtures below.
 // ============================================================================
+
+let persistence = null;
+try {
+    persistence = require('./sqlite_persist');
+} catch (e) {
+    persistence = null;
+}
 
 // ============================================================================
 // CATEGORIES - Topics for organizing content
@@ -16,6 +25,37 @@ const categories = [
     { id: 'news', name: 'Current Events', icon: 'Newspaper', color: '#64748b', description: 'Contemporary issues and ongoing debates' },
     { id: 'religion', name: 'Religion', icon: 'Church', color: '#a855f7', description: 'Theology, spirituality, religious history' }
 ];
+
+// Persistence will be loaded asynchronously by server initialization.
+// When available, `server/server.js` will call `applyPersistence(loaded)` to merge persisted rows.
+function applyPersistence(loaded) {
+    try {
+        const dbRef = loaded.db;
+        if (loaded.categories && Object.keys(loaded.categories).length > 0) categories = Object.values(loaded.categories);
+        if (loaded.users && Object.keys(loaded.users).length > 0) users = loaded.users;
+        if (loaded.memes && loaded.memes.length > 0) memes = loaded.memes;
+        if (loaded.nodes && Object.keys(loaded.nodes).length > 0) nodes = loaded.nodes;
+        if (loaded.edges && loaded.edges.length > 0) edges = loaded.edges;
+        if (loaded.debates && loaded.debates.length > 0) debates = loaded.debates;
+        if (loaded.evidenceQueue && loaded.evidenceQueue.length > 0) evidenceQueue = loaded.evidenceQueue;
+
+        const anyPersisted = (loaded.categories && Object.keys(loaded.categories).length) || (loaded.users && Object.keys(loaded.users).length) || (loaded.memes && loaded.memes.length) || (loaded.nodes && Object.keys(loaded.nodes).length) || (loaded.edges && loaded.edges.length) || (loaded.debates && loaded.debates.length) || (loaded.evidenceQueue && loaded.evidenceQueue.length);
+        if (!anyPersisted) {
+            // seed DB with current fixtures
+            persistence.persistArray(dbRef, 'memes', memes).catch(() => {});
+            persistence.persistObjects(dbRef, 'nodes', nodes).catch(() => {});
+            persistence.persistArray(dbRef, 'edges', edges).catch(() => {});
+            persistence.persistArray(dbRef, 'debates', debates).catch(() => {});
+            persistence.persistArray(dbRef, 'evidenceQueue', evidenceQueue).catch(() => {});
+            persistence.persistObjects(dbRef, 'users', users).catch(() => {});
+            const catObj = {};
+            for (const c of categories) catObj[c.id] = c;
+            persistence.persistObjects(dbRef, 'categories', catObj).catch(() => {});
+        }
+    } catch (e) {
+        console.warn('applyPersistence failed:', e && e.message ? e.message : e);
+    }
+}
 
 // ============================================================================
 // USERS - Reputation and identity
@@ -789,6 +829,7 @@ module.exports = {
     evidenceQueue,
     categories,
     debates,
+    applyPersistence,
     
     // Helper functions
     getUserById: (id) => Object.values(users).find(u => u.id === id),

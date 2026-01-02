@@ -6,6 +6,7 @@
 const express = require('express');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 const db = require('./db.js');
 
@@ -14,6 +15,23 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 const PORT = process.env.PORT || 3001;
+
+// Attempt to load SQLite persistence asynchronously (sqlite_persist uses `sqlite3`)
+try {
+    const persistence = require('./sqlite_persist');
+    persistence.loadAll().then((loaded) => {
+        try {
+            db.applyPersistence(loaded);
+            console.log('SQLite persistence loaded and applied.');
+        } catch (e) {
+            console.warn('Failed to apply persistence:', e && e.message ? e.message : e);
+        }
+    }).catch((err) => {
+        console.warn('SQLite persistence load failed:', err && err.message ? err.message : err);
+    });
+} catch (e) {
+    // persistence module not available; continue with in-memory fixtures
+}
 
 // ============================================================================
 // MIDDLEWARE
@@ -603,19 +621,8 @@ app.get('/api/stats', (req, res) => {
     res.json(stats);
 });
 
-// ============================================================================
-// ERROR HANDLING
-// ============================================================================
-
-app.use((err, req, res, next) => {
-    console.error('Error:', err);
-    res.status(500).json({ error: 'Internal server error' });
-});
-
-// 404 handler
-app.use((req, res) => {
-    res.status(404).json({ error: 'Endpoint not found' });
-});
+// NOTE: Error and 404 handlers are registered at the end of the file
+// so that they do not intercept valid route definitions declared below.
 
 // ============================================================================
 // FINGERPRINTING ENDPOINTS
@@ -634,52 +641,76 @@ app.post('/api/fingerprint', (req, res) => {
                      (req.socket && req.socket.remoteAddress) ||
                      (req.connection.socket && req.connection.socket.remoteAddress) || 'unknown';
 
-    // Simulate RTT measurement (in real implementation, this would be measured)
-    const rtt = Math.floor(Math.random() * 200) + 20; // 20-220ms
+    // Build a deterministic fingerprint string from key fields
+    const fingerprintString = JSON.stringify({
+        ua: browserFingerprint.userAgent || '',
+        screen: browserFingerprint.screenResolution || '',
+        timezone: browserFingerprint.timezone || '',
+        platform: browserFingerprint.platform || '',
+        language: browserFingerprint.language || '',
+        canvas: browserFingerprint.canvasFingerprint || ''
+    });
 
-    // Generate identity fingerprint
+    const hash = crypto.createHash('sha256').update(fingerprintString + '|' + ipAddress).digest('hex');
+    const publicId = `aegis_${hash.substring(0,4)}_${hash.substring(4,8)}_${hash.substring(8,12)}_${hash.substring(12,16)}`;
+
+    // Deterministic RTT and trustScore based on hash to keep identity stable
+    const rttSeed = parseInt(hash.substring(16,20), 16) || 100;
+    const rtt = (rttSeed % 300) + 20; // 20-319ms
+    const rttBucket = rtt < 50 ? 'nearby' : rtt < 200 ? 'regional' : 'distant';
+    const trustScore = 60 + (parseInt(hash.substring(20,22), 16) % 41); // 60-100
+
     const identityFingerprint = {
-        publicId: `aegis_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}`,
-        trustScore: Math.floor(Math.random() * 40) + 60, // 60-100
+        publicId,
+        trustScore,
         metadata: {
-            geohash: '9q8yy', // San Francisco area
-            rttBucket: rtt < 50 ? 'nearby' : rtt < 200 ? 'regional' : 'distant',
-            created: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000), // Random date within last year
+            geohash: browserFingerprint.geolocation ? 'approx' : null,
+            rttBucket,
+            created: new Date().toISOString(),
             lastSeen: new Date()
         },
         flags: {
-            vpn: Math.random() < 0.1, // 10% chance
-            tor: Math.random() < 0.01, // 1% chance
-            proxy: Math.random() < 0.05, // 5% chance
+            vpn: false,
+            tor: false,
+            proxy: false,
             multipleAccounts: false
         },
         stats: {
-            contributions: Math.floor(Math.random() * 50) + 1,
-            verifiedContributions: Math.floor(Math.random() * 30) + 1,
-            disputedContributions: Math.floor(Math.random() * 5),
-            reputation: Math.floor(Math.random() * 2000) + 500
+            contributions: 0,
+            verifiedContributions: 0,
+            disputedContributions: 0,
+            reputation: trustScore * 10
         }
     };
 
-    // Check if user already exists, otherwise create new user
-    let user = db.getUserByFingerprint(identityFingerprint.publicId);
+    // Check if user already exists, otherwise create new deterministic user
+    let user = db.getUserByFingerprint(publicId);
     if (!user) {
         user = {
-            id: identityFingerprint.publicId,
-            username: `User_${identityFingerprint.publicId.split('_')[1]}`,
+            id: publicId,
+            username: `User_${publicId.split('_')[1]}`,
             reputation: identityFingerprint.stats.reputation,
             trustScore: identityFingerprint.trustScore,
-            bio: 'New AEGIS member',
-            joinedAt: identityFingerprint.metadata.created.toISOString(),
-            contributions: identityFingerprint.stats
+            bio: 'AEGIS member',
+            joinedAt: identityFingerprint.metadata.created,
+            contributions: { memes: 0, evidence: 0, verifications: 0 }
         };
-        db.users[identityFingerprint.publicId] = user;
+        db.users[publicId] = user;
+
+        // Attempt to persist new user if sqlite persistence is available
+        try {
+            const persist = require('./sqlite_persist');
+            const dbRef = persist.ensureDb();
+            persist.persistObjects(dbRef, 'users', { [publicId]: user });
+        } catch (e) {
+            // Ignore persistence errors here
+        }
+    } else {
+        // Update lastSeen in identity metadata for returned response
+        identityFingerprint.metadata.lastSeen = new Date();
     }
 
-    res.json({
-        identity: identityFingerprint,
-        user: user
-    });
+    res.json({ identity: identityFingerprint, user });
 });
 
 // ============================================================================
@@ -807,52 +838,76 @@ app.post('/api/fingerprint', (req, res) => {
                      (req.socket && req.socket.remoteAddress) ||
                      (req.connection.socket && req.connection.socket.remoteAddress) || 'unknown';
 
-    // Simulate RTT measurement (in real implementation, this would be measured)
-    const rtt = Math.floor(Math.random() * 200) + 20; // 20-220ms
+    // Build a deterministic fingerprint string from key fields
+    const fingerprintString = JSON.stringify({
+        ua: browserFingerprint.userAgent || '',
+        screen: browserFingerprint.screenResolution || '',
+        timezone: browserFingerprint.timezone || '',
+        platform: browserFingerprint.platform || '',
+        language: browserFingerprint.language || '',
+        canvas: browserFingerprint.canvasFingerprint || ''
+    });
 
-    // Generate identity fingerprint
+    const hash = crypto.createHash('sha256').update(fingerprintString + '|' + ipAddress).digest('hex');
+    const publicId = `aegis_${hash.substring(0,4)}_${hash.substring(4,8)}_${hash.substring(8,12)}_${hash.substring(12,16)}`;
+
+    // Deterministic RTT and trustScore based on hash to keep identity stable
+    const rttSeed = parseInt(hash.substring(16,20), 16) || 100;
+    const rtt = (rttSeed % 300) + 20; // 20-319ms
+    const rttBucket = rtt < 50 ? 'nearby' : rtt < 200 ? 'regional' : 'distant';
+    const trustScore = 60 + (parseInt(hash.substring(20,22), 16) % 41); // 60-100
+
     const identityFingerprint = {
-        publicId: `aegis_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}`,
-        trustScore: Math.floor(Math.random() * 40) + 60, // 60-100
+        publicId,
+        trustScore,
         metadata: {
-            geohash: '9q8yy', // San Francisco area
-            rttBucket: rtt < 50 ? 'nearby' : rtt < 200 ? 'regional' : 'distant',
-            created: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000), // Random date within last year
+            geohash: browserFingerprint.geolocation ? 'approx' : null,
+            rttBucket,
+            created: new Date().toISOString(),
             lastSeen: new Date()
         },
         flags: {
-            vpn: Math.random() < 0.1, // 10% chance
-            tor: Math.random() < 0.01, // 1% chance
-            proxy: Math.random() < 0.05, // 5% chance
+            vpn: false,
+            tor: false,
+            proxy: false,
             multipleAccounts: false
         },
         stats: {
-            contributions: Math.floor(Math.random() * 50) + 1,
-            verifiedContributions: Math.floor(Math.random() * 30) + 1,
-            disputedContributions: Math.floor(Math.random() * 5),
-            reputation: Math.floor(Math.random() * 2000) + 500
+            contributions: 0,
+            verifiedContributions: 0,
+            disputedContributions: 0,
+            reputation: trustScore * 10
         }
     };
 
-    // Check if user already exists, otherwise create new user
-    let user = db.getUserByFingerprint(identityFingerprint.publicId);
+    // Check if user already exists, otherwise create new deterministic user
+    let user = db.getUserByFingerprint(publicId);
     if (!user) {
         user = {
-            id: identityFingerprint.publicId,
-            username: `User_${identityFingerprint.publicId.split('_')[1]}`,
+            id: publicId,
+            username: `User_${publicId.split('_')[1]}`,
             reputation: identityFingerprint.stats.reputation,
             trustScore: identityFingerprint.trustScore,
-            bio: 'New AEGIS member',
-            joinedAt: identityFingerprint.metadata.created.toISOString(),
-            contributions: identityFingerprint.stats
+            bio: 'AEGIS member',
+            joinedAt: identityFingerprint.metadata.created,
+            contributions: { memes: 0, evidence: 0, verifications: 0 }
         };
-        db.users[identityFingerprint.publicId] = user;
+        db.users[publicId] = user;
+
+        // Attempt to persist new user if sqlite persistence is available
+        try {
+            const persist = require('./sqlite_persist');
+            const dbRef = persist.ensureDb();
+            persist.persistObjects(dbRef, 'users', { [publicId]: user });
+        } catch (e) {
+            // Ignore persistence errors here
+        }
+    } else {
+        // Update lastSeen in identity metadata for returned response
+        identityFingerprint.metadata.lastSeen = new Date();
     }
 
-    res.json({
-        identity: identityFingerprint,
-        user: user
-    });
+    res.json({ identity: identityFingerprint, user });
 });
 
 // ============================================================================
@@ -881,3 +936,17 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+
+// ============================================================================
+// ERROR HANDLING (registered last)
+// ============================================================================
+
+app.use((err, req, res, next) => {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: 'Endpoint not found' });
+});
