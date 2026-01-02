@@ -618,6 +618,244 @@ app.use((req, res) => {
 });
 
 // ============================================================================
+// FINGERPRINTING ENDPOINTS
+// ============================================================================
+
+// POST /api/fingerprint - Submit browser fingerprint and get identity
+app.post('/api/fingerprint', (req, res) => {
+    const { browserFingerprint } = req.body;
+
+    if (!browserFingerprint) {
+        return res.status(400).json({ error: 'Browser fingerprint is required' });
+    }
+
+    // Get client IP address
+    const ipAddress = req.ip || req.connection.remoteAddress ||
+                     (req.socket && req.socket.remoteAddress) ||
+                     (req.connection.socket && req.connection.socket.remoteAddress) || 'unknown';
+
+    // Simulate RTT measurement (in real implementation, this would be measured)
+    const rtt = Math.floor(Math.random() * 200) + 20; // 20-220ms
+
+    // Generate identity fingerprint
+    const identityFingerprint = {
+        publicId: `aegis_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}`,
+        trustScore: Math.floor(Math.random() * 40) + 60, // 60-100
+        metadata: {
+            geohash: '9q8yy', // San Francisco area
+            rttBucket: rtt < 50 ? 'nearby' : rtt < 200 ? 'regional' : 'distant',
+            created: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000), // Random date within last year
+            lastSeen: new Date()
+        },
+        flags: {
+            vpn: Math.random() < 0.1, // 10% chance
+            tor: Math.random() < 0.01, // 1% chance
+            proxy: Math.random() < 0.05, // 5% chance
+            multipleAccounts: false
+        },
+        stats: {
+            contributions: Math.floor(Math.random() * 50) + 1,
+            verifiedContributions: Math.floor(Math.random() * 30) + 1,
+            disputedContributions: Math.floor(Math.random() * 5),
+            reputation: Math.floor(Math.random() * 2000) + 500
+        }
+    };
+
+    // Check if user already exists, otherwise create new user
+    let user = db.getUserByFingerprint(identityFingerprint.publicId);
+    if (!user) {
+        user = {
+            id: identityFingerprint.publicId,
+            username: `User_${identityFingerprint.publicId.split('_')[1]}`,
+            reputation: identityFingerprint.stats.reputation,
+            trustScore: identityFingerprint.trustScore,
+            bio: 'New AEGIS member',
+            joinedAt: identityFingerprint.metadata.created.toISOString(),
+            contributions: identityFingerprint.stats
+        };
+        db.users[identityFingerprint.publicId] = user;
+    }
+
+    res.json({
+        identity: identityFingerprint,
+        user: user
+    });
+});
+
+// ============================================================================
+// USER INTERACTION ENDPOINTS
+// ============================================================================
+
+// POST /api/nodes/:nodeId/comments - Add comment to a node
+app.post('/api/nodes/:nodeId/comments', (req, res) => {
+    const { nodeId } = req.params;
+    const { text, userId, fingerprintId } = req.body;
+
+    if (!text || (!userId && !fingerprintId)) {
+        return res.status(400).json({ error: 'Text and user/fingerprint ID are required' });
+    }
+
+    const node = db.getNodeById(nodeId);
+    if (!node) {
+        return res.status(404).json({ error: 'Node not found' });
+    }
+
+    const comment = {
+        id: `comment_${uuidv4().substring(0, 8)}`,
+        nodeId,
+        text,
+        userId: userId || fingerprintId,
+        createdAt: new Date().toISOString(),
+        votes: { up: 0, down: 0 }
+    };
+
+    // Initialize comments array if it doesn't exist
+    if (!node.comments) {
+        node.comments = [];
+    }
+    node.comments.push(comment);
+
+    res.status(201).json(comment);
+});
+
+// POST /api/nodes/:nodeId/links - Add citation/link to a node
+app.post('/api/nodes/:nodeId/links', (req, res) => {
+    const { nodeId } = req.params;
+    const { url, title, description, type, userId, fingerprintId } = req.body;
+
+    if (!url || (!userId && !fingerprintId)) {
+        return res.status(400).json({ error: 'URL and user/fingerprint ID are required' });
+    }
+
+    const node = db.getNodeById(nodeId);
+    if (!node) {
+        return res.status(404).json({ error: 'Node not found' });
+    }
+
+    const link = {
+        id: `link_${uuidv4().substring(0, 8)}`,
+        nodeId,
+        url,
+        title: title || url,
+        description,
+        type: type || 'citation',
+        submittedBy: userId || fingerprintId,
+        submittedAt: new Date().toISOString(),
+        verified: false,
+        votes: { up: 0, down: 0 }
+    };
+
+    // Initialize links array if it doesn't exist
+    if (!node.links) {
+        node.links = [];
+    }
+    node.links.push(link);
+
+    res.status(201).json(link);
+});
+
+// POST /api/nodes/:nodeId/vote - Vote on a node
+app.post('/api/nodes/:nodeId/vote', (req, res) => {
+    const { nodeId } = req.params;
+    const { vote, userId, fingerprintId } = req.body; // vote: 'up', 'down', or 'verify'
+
+    if (!vote || (!userId && !fingerprintId)) {
+        return res.status(400).json({ error: 'Vote type and user/fingerprint ID are required' });
+    }
+
+    const node = db.getNodeById(nodeId);
+    if (!node) {
+        return res.status(404).json({ error: 'Node not found' });
+    }
+
+    const voterId = userId || fingerprintId;
+
+    // Initialize votes tracking if it doesn't exist
+    if (!node.votes) {
+        node.votes = { up: 0, down: 0, verify: 0, voters: {} };
+    }
+
+    // Check if user already voted
+    if (node.votes.voters[voterId]) {
+        return res.status(400).json({ error: 'User has already voted on this node' });
+    }
+
+    // Record vote
+    if (vote === 'up') node.votes.up++;
+    else if (vote === 'down') node.votes.down++;
+    else if (vote === 'verify') node.votes.verify++;
+
+    node.votes.voters[voterId] = vote;
+
+    res.json({ success: true, votes: node.votes });
+});
+
+// ============================================================================
+// FINGERPRINTING ENDPOINTS
+// ============================================================================
+
+// POST /api/fingerprint - Submit browser fingerprint and get identity
+app.post('/api/fingerprint', (req, res) => {
+    const { browserFingerprint } = req.body;
+
+    if (!browserFingerprint) {
+        return res.status(400).json({ error: 'Browser fingerprint is required' });
+    }
+
+    // Get client IP address
+    const ipAddress = req.ip || req.connection.remoteAddress ||
+                     (req.socket && req.socket.remoteAddress) ||
+                     (req.connection.socket && req.connection.socket.remoteAddress) || 'unknown';
+
+    // Simulate RTT measurement (in real implementation, this would be measured)
+    const rtt = Math.floor(Math.random() * 200) + 20; // 20-220ms
+
+    // Generate identity fingerprint
+    const identityFingerprint = {
+        publicId: `aegis_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}_${Math.random().toString(36).substring(2, 6)}`,
+        trustScore: Math.floor(Math.random() * 40) + 60, // 60-100
+        metadata: {
+            geohash: '9q8yy', // San Francisco area
+            rttBucket: rtt < 50 ? 'nearby' : rtt < 200 ? 'regional' : 'distant',
+            created: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000), // Random date within last year
+            lastSeen: new Date()
+        },
+        flags: {
+            vpn: Math.random() < 0.1, // 10% chance
+            tor: Math.random() < 0.01, // 1% chance
+            proxy: Math.random() < 0.05, // 5% chance
+            multipleAccounts: false
+        },
+        stats: {
+            contributions: Math.floor(Math.random() * 50) + 1,
+            verifiedContributions: Math.floor(Math.random() * 30) + 1,
+            disputedContributions: Math.floor(Math.random() * 5),
+            reputation: Math.floor(Math.random() * 2000) + 500
+        }
+    };
+
+    // Check if user already exists, otherwise create new user
+    let user = db.getUserByFingerprint(identityFingerprint.publicId);
+    if (!user) {
+        user = {
+            id: identityFingerprint.publicId,
+            username: `User_${identityFingerprint.publicId.split('_')[1]}`,
+            reputation: identityFingerprint.stats.reputation,
+            trustScore: identityFingerprint.trustScore,
+            bio: 'New AEGIS member',
+            joinedAt: identityFingerprint.metadata.created.toISOString(),
+            contributions: identityFingerprint.stats
+        };
+        db.users[identityFingerprint.publicId] = user;
+    }
+
+    res.json({
+        identity: identityFingerprint,
+        user: user
+    });
+});
+
+// ============================================================================
 // START SERVER
 // ============================================================================
 

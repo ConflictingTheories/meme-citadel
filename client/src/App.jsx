@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import FingerprintDisplay from './components/FingerprintDisplay';
+import IdentityFingerprint from './components/IdentityFingerprint';
 import MemeFeed from './components/MemeFeed';
 import GraphView from './components/GraphView';
 import SubmissionForm from './components/SubmissionForm';
@@ -12,7 +13,7 @@ import CategoryNav from './components/CategoryNav';
 import { getCategories, getStats } from './api';
 import { 
     Home, PlusSquare, CheckSquare, ArrowLeft, MessageSquare, 
-    Search, Shield, TrendingUp, BarChart3, X, Menu
+    Search, Shield, TrendingUp, BarChart3, X, Menu, User
 } from 'lucide-react';
 
 const VIEWS = {
@@ -23,7 +24,8 @@ const VIEWS = {
     GRAPH: 'GRAPH',
     DEBATES: 'DEBATES',
     DEBATE_DETAIL: 'DEBATE_DETAIL',
-    SEARCH: 'SEARCH'
+    SEARCH: 'SEARCH',
+    IDENTITY: 'IDENTITY'
 };
 
 function App() {
@@ -97,6 +99,8 @@ function App() {
         switch (activeView) {
             case VIEWS.LANDING:
                 return <LandingPage onEnter={handleEnterCitadel} stats={stats} />;
+            case VIEWS.IDENTITY:
+                return <IdentityFingerprint />;
             case VIEWS.FEED:
                 return (
                     <MemeFeed 
@@ -206,6 +210,7 @@ function App() {
                         {/* Desktop Nav */}
                         <nav className="hidden lg:flex items-center gap-2">
                             <NavButton view={VIEWS.FEED} label="Feed" icon={Home} />
+                            <NavButton view={VIEWS.IDENTITY} label="Identity" icon={User} />
                             <NavButton view={VIEWS.DEBATES} label="Debates" icon={MessageSquare} />
                             <NavButton view={VIEWS.SUBMIT} label="Contribute" icon={PlusSquare} />
                             <NavButton 
@@ -234,6 +239,7 @@ function App() {
                     {showMobileMenu && (
                         <nav className="lg:hidden flex flex-wrap gap-2 mt-4 pb-2">
                             <NavButton view={VIEWS.FEED} label="Feed" icon={Home} />
+                            <NavButton view={VIEWS.IDENTITY} label="Identity" icon={User} />
                             <NavButton view={VIEWS.DEBATES} label="Debates" icon={MessageSquare} />
                             <NavButton view={VIEWS.SUBMIT} label="Contribute" icon={PlusSquare} />
                             <NavButton 

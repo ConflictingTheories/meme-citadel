@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { getGraph, getNode } from '../api';
+import { getGraph, getNode, apiRequest } from '../api';
 import {
     ChevronDown, ChevronUp, BookOpen, FileText, Video, Link,
-    Shield, ArrowRight, Eye, Brain, ScrollText, Layers
+    Shield, ArrowRight, Eye, Brain, ScrollText, Layers,
+    MessageSquare, ExternalLink, ThumbsUp, ThumbsDown, Plus
 } from 'lucide-react';
 
 // Rabbit Hole Interface - The core AEGIS feature
@@ -12,6 +13,10 @@ const RabbitHoleInterface = ({ memeId, onClose }) => {
     const [selectedNode, setSelectedNode] = useState(null);
     const [scrollOfTruth, setScrollOfTruth] = useState('');
     const [loading, setLoading] = useState(true);
+    const [userId, setUserId] = useState('demo_user_123'); // In real app, this would come from fingerprinting
+    const [expandedNodes, setExpandedNodes] = useState(new Set());
+    const [newComment, setNewComment] = useState('');
+    const [newLink, setNewLink] = useState({ url: '', title: '', description: '' });
 
     useEffect(() => {
         loadGraphData();
@@ -100,14 +105,84 @@ const RabbitHoleInterface = ({ memeId, onClose }) => {
         }
     };
 
-    const getNodeColor = (type) => {
-        switch (type) {
-            case 'MEME': return 'bg-purple-500';
-            case 'AXIOM': return 'bg-blue-500';
-            case 'EVENT': return 'bg-orange-500';
-            case 'STATISTIC': return 'bg-green-500';
-            case 'TEXT': return 'bg-indigo-500';
-            default: return 'bg-gray-500';
+    const toggleNodeExpansion = (nodeId) => {
+        const newExpanded = new Set(expandedNodes);
+        if (newExpanded.has(nodeId)) {
+            newExpanded.delete(nodeId);
+        } else {
+            newExpanded.add(nodeId);
+        }
+        setExpandedNodes(newExpanded);
+    };
+
+    const addComment = async (nodeId, text) => {
+        if (!text.trim()) return;
+
+        try {
+            const comment = await apiRequest(`/nodes/${nodeId}/comments`, {
+                method: 'POST',
+                body: JSON.stringify({ text, userId }),
+            });
+
+            // Update the graph data with the new comment
+            setGraphData(prevData => ({
+                ...prevData,
+                nodes: prevData.nodes.map(node =>
+                    node.id === nodeId
+                        ? { ...node, comments: [...(node.comments || []), comment] }
+                        : node
+                )
+            }));
+
+            setNewComment('');
+        } catch (error) {
+            console.error('Failed to add comment:', error);
+        }
+    };
+
+    const addLink = async (nodeId, linkData) => {
+        if (!linkData.url.trim()) return;
+
+        try {
+            const link = await apiRequest(`/nodes/${nodeId}/links`, {
+                method: 'POST',
+                body: JSON.stringify({ ...linkData, userId }),
+            });
+
+            // Update the graph data with the new link
+            setGraphData(prevData => ({
+                ...prevData,
+                nodes: prevData.nodes.map(node =>
+                    node.id === nodeId
+                        ? { ...node, links: [...(node.links || []), link] }
+                        : node
+                )
+            }));
+
+            setNewLink({ url: '', title: '', description: '' });
+        } catch (error) {
+            console.error('Failed to add link:', error);
+        }
+    };
+
+    const voteOnNode = async (nodeId, vote) => {
+        try {
+            const result = await apiRequest(`/nodes/${nodeId}/vote`, {
+                method: 'POST',
+                body: JSON.stringify({ vote, userId }),
+            });
+
+            // Update the graph data with the new vote counts
+            setGraphData(prevData => ({
+                ...prevData,
+                nodes: prevData.nodes.map(node =>
+                    node.id === nodeId
+                        ? { ...node, votes: result.votes }
+                        : node
+                )
+            }));
+        } catch (error) {
+            console.error('Failed to vote:', error);
         }
     };
 
@@ -189,11 +264,129 @@ const RabbitHoleInterface = ({ memeId, onClose }) => {
                                         <div className={`w-3 h-3 rounded-full ${getNodeColor(node.type)}`}></div>
                                         {getNodeIcon(node.type)}
                                         <span className="text-white text-sm font-medium">{node.label}</span>
+                                        <button
+                                            onClick={() => toggleNodeExpansion(node.id)}
+                                            className="ml-auto text-slate-400 hover:text-white"
+                                        >
+                                            {expandedNodes.has(node.id) ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                        </button>
                                     </div>
                                     <p className="text-slate-300 text-xs">{node.content?.substring(0, 80)}...</p>
                                     {node.provenance && (
                                         <div className="mt-2 text-xs text-slate-400">
                                             Source: {node.provenance.source} ({node.provenance.year})
+                                        </div>
+                                    )}
+
+                                    {/* Voting */}
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <button
+                                            onClick={() => voteOnNode(node.id, 'up')}
+                                            className="flex items-center gap-1 text-xs text-green-400 hover:text-green-300"
+                                        >
+                                            <ThumbsUp className="w-3 h-3" />
+                                            {node.votes?.up || 0}
+                                        </button>
+                                        <button
+                                            onClick={() => voteOnNode(node.id, 'down')}
+                                            className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300"
+                                        >
+                                            <ThumbsDown className="w-3 h-3" />
+                                            {node.votes?.down || 0}
+                                        </button>
+                                        <span className="text-xs text-slate-500 ml-auto">
+                                            {node.comments?.length || 0} comments
+                                        </span>
+                                    </div>
+
+                                    {/* Expanded Content */}
+                                    {expandedNodes.has(node.id) && (
+                                        <div className="mt-3 pt-3 border-t border-slate-600">
+                                            {/* Comments Section */}
+                                            <div className="mb-3">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <MessageSquare className="w-3 h-3 text-slate-400" />
+                                                    <span className="text-xs text-slate-400">Comments</span>
+                                                </div>
+                                                {node.comments?.map(comment => (
+                                                    <div key={comment.id} className="bg-slate-800 rounded p-2 mb-2">
+                                                        <p className="text-xs text-slate-300">{comment.text}</p>
+                                                        <div className="text-xs text-slate-500 mt-1">
+                                                            {new Date(comment.createdAt).toLocaleDateString()}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Add a comment..."
+                                                        className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                                                        value={newComment}
+                                                        onChange={(e) => setNewComment(e.target.value)}
+                                                        onKeyPress={(e) => e.key === 'Enter' && addComment(node.id, newComment)}
+                                                    />
+                                                    <button
+                                                        onClick={() => addComment(node.id, newComment)}
+                                                        className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs"
+                                                    >
+                                                        <Plus className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Links Section */}
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <ExternalLink className="w-3 h-3 text-slate-400" />
+                                                    <span className="text-xs text-slate-400">Citations & Links</span>
+                                                </div>
+                                                {node.links?.map(link => (
+                                                    <div key={link.id} className="bg-slate-800 rounded p-2 mb-2">
+                                                        <a
+                                                            href={link.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-xs text-blue-400 hover:text-blue-300"
+                                                        >
+                                                            {link.title || link.url}
+                                                        </a>
+                                                        {link.description && (
+                                                            <p className="text-xs text-slate-500 mt-1">{link.description}</p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                <div className="space-y-2">
+                                                    <input
+                                                        type="url"
+                                                        placeholder="URL..."
+                                                        className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                                                        value={newLink.url}
+                                                        onChange={(e) => setNewLink({...newLink, url: e.target.value})}
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Title (optional)..."
+                                                        className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                                                        value={newLink.title}
+                                                        onChange={(e) => setNewLink({...newLink, title: e.target.value})}
+                                                    />
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Description..."
+                                                            className="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                                                            value={newLink.description}
+                                                            onChange={(e) => setNewLink({...newLink, description: e.target.value})}
+                                                        />
+                                                        <button
+                                                            onClick={() => addLink(node.id, newLink)}
+                                                            className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs"
+                                                        >
+                                                            <Plus className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

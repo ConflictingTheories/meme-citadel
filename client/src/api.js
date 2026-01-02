@@ -6,7 +6,7 @@
 const API_BASE_URL = 'http://localhost:3001/api';
 
 // Helper for making requests
-async function apiRequest(endpoint, options = {}) {
+export async function apiRequest(endpoint, options = {}) {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers: { 'Content-Type': 'application/json' },
         ...options,
@@ -19,6 +19,13 @@ async function apiRequest(endpoint, options = {}) {
     
     return response.json();
 }
+
+// ============================================================================
+// GRAPH
+// ============================================================================
+export const getGraph = (nodeId) => apiRequest(`/graph/${nodeId}`);
+
+export const getNode = (id) => apiRequest(`/nodes/${id}`);
 
 // ============================================================================
 // CATEGORIES
@@ -41,12 +48,27 @@ export const createMeme = (memeData) => apiRequest('/memes', {
 });
 
 // ============================================================================
-// KNOWLEDGE GRAPH
+// USER INTERACTIONS
 // ============================================================================
-export const getGraph = (rootNodeId, depth = 2) => 
-    apiRequest(`/graph/${rootNodeId}?depth=${depth}`);
+export const submitFingerprint = (browserFingerprint) => apiRequest('/fingerprint', {
+    method: 'POST',
+    body: JSON.stringify({ browserFingerprint }),
+});
 
-export const getNode = (nodeId) => apiRequest(`/nodes/${nodeId}`);
+export const addComment = (nodeId, text, userId) => apiRequest(`/nodes/${nodeId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ text, userId }),
+});
+
+export const addLink = (nodeId, url, title, description, type, userId) => apiRequest(`/nodes/${nodeId}/links`, {
+    method: 'POST',
+    body: JSON.stringify({ url, title, description, type, userId }),
+});
+
+export const voteOnNode = (nodeId, vote, userId) => apiRequest(`/nodes/${nodeId}/vote`, {
+    method: 'POST',
+    body: JSON.stringify({ vote, userId }),
+});
 
 export const createNode = (nodeData) => apiRequest('/nodes', {
     method: 'POST',
